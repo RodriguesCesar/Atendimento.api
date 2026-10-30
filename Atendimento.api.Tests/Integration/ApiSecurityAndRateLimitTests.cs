@@ -17,7 +17,7 @@ public class ApiSecurityAndRateLimitTests
     [Fact]
     public async Task AtendimentoEndpoint_WithoutApiKey_ReturnsUnauthorized()
     {
-        await using var factory = new TestApiFactory(permitLimit: 5);
+        await using var factory = new TestApiFactory(permitLimit: 1);
         using var client = factory.CreateClient();
 
         var response = await client.PostAsJsonAsync("/api/atendimento", new
@@ -52,7 +52,7 @@ public class ApiSecurityAndRateLimitTests
     [Fact]
     public async Task AdminReindex_WithApiKey_ReturnsOk()
     {
-        await using var factory = new TestApiFactory(permitLimit: 5);
+        await using var factory = new TestApiFactory(permitLimit: 1);
         using var client = factory.CreateClient();
         client.DefaultRequestHeaders.Add("X-API-Key", "test-api-key");
 
