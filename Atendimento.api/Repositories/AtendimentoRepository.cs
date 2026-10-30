@@ -1,11 +1,14 @@
-﻿using Dapper;
+using Dapper;
 using Microsoft.Data.SqlClient;
 
 namespace Atendimento.API.Repositories
 {
     public class AtendimentoRepository(IConfiguration configuration)
     {
-        public async Task Inserir(AtendimentoModel model)
+        private readonly string _connectionString = configuration.GetConnectionString("BDAtendimentos")
+            ?? throw new InvalidOperationException("ConnectionStrings:BDAtendimentos não configurada.");
+
+        public async Task Inserir(AtendimentoModel model, CancellationToken cancellationToken = default)
         {
             var query = @"
                 INSERT INTO Atendimento
@@ -14,13 +17,12 @@ namespace Atendimento.API.Repositories
                 (@Id, @NomeUsuario, @Mensagem, @Resposta, @DataHora)
             ";
 
-            using (var connection = new SqlConnection(configuration.GetSection("ConnectionStrings:BDAtendimentos").Value))
-            {
-                await connection.ExecuteAsync(query, model);
-            }
+            await using var connection = new SqlConnection(_connectionString);
+            var command = new CommandDefinition(query, model, cancellationToken: cancellationToken);
+            await connection.ExecuteAsync(command);
         }
 
-        public async Task<IEnumerable<AtendimentoModel>> ObterUltimosPorUsuario(string nomeUsuario)
+        public async Task<IEnumerable<AtendimentoModel>> ObterUltimosPorUsuario(string nomeUsuario, CancellationToken cancellationToken = default)
         {
             var query = @"
                 SELECT TOP 3 *
@@ -29,10 +31,9 @@ namespace Atendimento.API.Repositories
                 ORDER BY DataHora DESC
             ";
 
-            using (var connection = new SqlConnection(configuration.GetSection("ConnectionStrings:BDAtendimentos").Value))
-            {
-                return await connection.QueryAsync<AtendimentoModel>(query, new { NomeUsuario = nomeUsuario });
-            }
+            await using var connection = new SqlConnection(_connectionString);
+            var command = new CommandDefinition(query, new { NomeUsuario = nomeUsuario }, cancellationToken: cancellationToken);
+            return await connection.QueryAsync<AtendimentoModel>(command);
         }
     }
 

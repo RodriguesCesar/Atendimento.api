@@ -1,4 +1,4 @@
-﻿using OpenAI;
+using OpenAI;
 using OpenAI.Chat;
 using OpenAI.Embeddings;
 
@@ -10,8 +10,10 @@ namespace Atendimento.API.Services
         private readonly ChatClient _chatClient;
         private readonly EmbeddingClient _embeddingClient;
         private readonly IConfiguration _configuration;
+        private readonly SemaphoreSlim _indexingLock = new(1, 1);
+        private bool _knowledgeLoaded;
 
-        private List<(string Text, float[] Vector)> _vectorDb = new();
+        private readonly List<(string Text, float[] Vector)> _vectorDb = new();
 
         public OpenAIService(
             BaseDeConhecimentoService baseDeConhecimentoService,
@@ -20,25 +22,28 @@ namespace Atendimento.API.Services
             _baseDeConhecimentoService = baseDeConhecimentoService;
             _configuration = configuration;
 
-            var model = configuration["OpenAI:Model"]!;
-            var key = configuration["OpenAI:Key"]!;
+            var model = configuration["OpenAI:Model"];
+            var key = configuration["OpenAI:Key"];
+
+            if (string.IsNullOrWhiteSpace(model))
+                throw new InvalidOperationException("Configuração OpenAI:Model não encontrada.");
+
+            if (string.IsNullOrWhiteSpace(key))
+                throw new InvalidOperationException("OpenAI:Key não configurada. Configure via variável de ambiente ou appsettings.Local.json.");
 
             var openAIClient = new OpenAIClient(key);
-
-            // NOVO padrão
             _chatClient = openAIClient.GetChatClient(model);
             _embeddingClient = openAIClient.GetEmbeddingClient("text-embedding-3-small");
-
-            LerBaseDeConhecimento().Wait();
         }
 
-        /// <summary>
-        /// Envia pergunta ao modelo
-        /// </summary>
-        public async Task<string> SendMessage(string text)
+        public async Task<string> SendMessage(string text, CancellationToken cancellationToken = default)
         {
-            var contexto = await BuscarContexto(text);
+            if (string.IsNullOrWhiteSpace(text))
+                throw new ArgumentException("A mensagem não pode ser vazia.", nameof(text));
 
+            await EnsureKnowledgeLoadedAsync(cancellationToken);
+
+            var contexto = await BuscarContexto(text);
             var prompt = MontarPrompt(text, contexto);
 
             var messages = new List<ChatMessage>
@@ -47,14 +52,30 @@ namespace Atendimento.API.Services
                 new UserChatMessage(prompt.User)
             };
 
-            var response = await _chatClient.CompleteChatAsync(messages);
-
-            return response.Value.Content[0].Text;
+            var response = await _chatClient.CompleteChatAsync(messages, cancellationToken: cancellationToken);
+            return response.Value.Content.FirstOrDefault()?.Text ?? "Não consegui gerar uma resposta neste momento.";
         }
 
-        /// <summary>
-        /// Indexação (RAG)
-        /// </summary>
+        private async Task EnsureKnowledgeLoadedAsync(CancellationToken cancellationToken)
+        {
+            if (_knowledgeLoaded)
+                return;
+
+            await _indexingLock.WaitAsync(cancellationToken);
+            try
+            {
+                if (_knowledgeLoaded)
+                    return;
+
+                await LerBaseDeConhecimento();
+                _knowledgeLoaded = true;
+            }
+            finally
+            {
+                _indexingLock.Release();
+            }
+        }
+
         private async Task LerBaseDeConhecimento()
         {
             var docs = _baseDeConhecimentoService.LoadDocuments();
@@ -64,19 +85,17 @@ namespace Atendimento.API.Services
                 foreach (var chunk in doc.Chunks)
                 {
                     var emb = await _embeddingClient.GenerateEmbeddingAsync(chunk);
-
                     _vectorDb.Add((chunk, emb.Value.ToFloats().ToArray()));
                 }
             }
         }
 
-        /// <summary>
-        /// Busca semântica
-        /// </summary>
         private async Task<string> BuscarContexto(string pergunta)
         {
-            var emb = await _embeddingClient.GenerateEmbeddingAsync(pergunta);
+            if (_vectorDb.Count == 0)
+                return string.Empty;
 
+            var emb = await _embeddingClient.GenerateEmbeddingAsync(pergunta);
             var queryVector = emb.Value.ToFloats().ToArray();
 
             var top = _vectorDb
@@ -92,12 +111,10 @@ namespace Atendimento.API.Services
             return string.Join("\n\n", top);
         }
 
-        /// <summary>
-        /// Prompt Engineering
-        /// </summary>
         private (string System, string User) MontarPrompt(string pergunta, string contexto)
         {
-            var system = _configuration["EngenhariaDePrompt:AtendenteCOTI"]!;
+            var system = _configuration["EngenhariaDePrompt:AtendenteCOTI"]
+                ?? throw new InvalidOperationException("Configuração EngenhariaDePrompt:AtendenteCOTI não encontrada.");
 
             var user = $"""
             CONTEXTO:
@@ -110,10 +127,7 @@ namespace Atendimento.API.Services
             return (system, user);
         }
 
-        /// <summary>
-        /// Similaridade de cosseno
-        /// </summary>
-        private double CosineSimilarity(float[] v1, float[] v2)
+        private static double CosineSimilarity(float[] v1, float[] v2)
         {
             double dot = 0, mag1 = 0, mag2 = 0;
 

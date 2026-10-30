@@ -1,6 +1,19 @@
 @Atendimento.api_HostAddress = http://localhost:5095
 
-GET {{Atendimento.api_HostAddress}}/weatherforecast/
+POST {{Atendimento.api_HostAddress}}/api/Atendimento
+Content-Type: application/json
+
+{
+  "nome": "César",
+  "mensagem": "Quais cursos de desenvolvimento vocês têm no período da noite?"
+}
+
+###
+
+GET {{Atendimento.api_HostAddress}}/health/live
 Accept: application/json
 
 ###
+
+GET {{Atendimento.api_HostAddress}}/health/ready
+Accept: application/json
