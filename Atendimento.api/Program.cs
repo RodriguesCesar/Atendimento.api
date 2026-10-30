@@ -47,7 +47,11 @@ builder.Services.AddRateLimiter(options =>
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
     options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
     {
-        var key = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        var apiKey = context.Request.Headers["X-API-Key"].ToString();
+        var key = !string.IsNullOrWhiteSpace(apiKey)
+            ? $"api-key:{apiKey}"
+            : $"ip:{context.Connection.RemoteIpAddress?.ToString() ?? "unknown"}";
+
         return RateLimitPartition.GetFixedWindowLimiter(
             partitionKey: key,
             factory: _ => new FixedWindowRateLimiterOptions
