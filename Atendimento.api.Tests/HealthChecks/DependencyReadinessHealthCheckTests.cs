@@ -2,6 +2,8 @@ using Atendimento.API.HealthChecks;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.Extensions.FileProviders;
+using Xunit;
 
 namespace Atendimento.api.Tests.HealthChecks;
 
