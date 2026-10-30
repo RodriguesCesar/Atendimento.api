@@ -1,7 +1,10 @@
+using System.Threading.RateLimiting;
 using Atendimento.Application.UseCases;
 using Atendimento.Domain.Contracts;
 using Atendimento.Infrastructure.Repositories;
 using Atendimento.Infrastructure.Services;
+using Atendimento.API.Security;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using OpenTelemetry.Exporter;
@@ -23,6 +26,40 @@ builder.Services.AddProblemDetails(options =>
     };
 });
 builder.Services.AddHealthChecks();
+
+builder.Services
+    .AddAuthentication("ApiKey")
+    .AddScheme<AuthenticationSchemeOptions, ApiKeyAuthenticationHandler>("ApiKey", _ => { });
+builder.Services.AddAuthorization();
+
+var rateLimitPermit = int.TryParse(builder.Configuration["RateLimiting:PermitLimit"], out var permitLimit)
+    ? permitLimit
+    : 30;
+var rateLimitWindowSeconds = int.TryParse(builder.Configuration["RateLimiting:WindowSeconds"], out var windowSeconds)
+    ? windowSeconds
+    : 60;
+var rateLimitQueue = int.TryParse(builder.Configuration["RateLimiting:QueueLimit"], out var queueLimit)
+    ? queueLimit
+    : 0;
+
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+    {
+        var key = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        return RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: key,
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = rateLimitPermit,
+                Window = TimeSpan.FromSeconds(rateLimitWindowSeconds),
+                QueueLimit = rateLimitQueue,
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                AutoReplenishment = true
+            });
+    });
+});
 
 var otelServiceName = builder.Configuration["OpenTelemetry:ServiceName"] ?? "Atendimento.API";
 var otelEndpoint = builder.Configuration["OpenTelemetry:Otlp:Endpoint"]
@@ -127,6 +164,8 @@ if (app.Environment.IsDevelopment())
 app.MapHealthChecks("/health/live");
 app.MapHealthChecks("/health/ready");
 
+app.UseRateLimiter();
+app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 app.Run();

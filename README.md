@@ -34,11 +34,12 @@ Fluxo principal:
 cp Atendimento.api/appsettings.Local.example.json Atendimento.api/appsettings.Local.json
 ```
 
-2. Defina a chave OpenAI em `Atendimento.api/appsettings.Local.json`.
+2. Defina `Security:ApiKey` e `OpenAI:Key` em `Atendimento.api/appsettings.Local.json`.
 
-Alternativa por variável de ambiente:
+Alternativas por variáveis de ambiente:
 
 ```bash
+Security__ApiKey=api-key-segura
 OpenAI__Key=seu-segredo
 ```
 
@@ -50,7 +51,7 @@ dotnet run --project Atendimento.api/Atendimento.API.csproj
 
 ## Endpoints principais
 
-- `POST /api/Atendimento`
+- `POST /api/Atendimento` (protegido por `X-API-Key`)
 - `GET /health/live`
 - `GET /health/ready`
 
@@ -63,7 +64,34 @@ Exemplo de request:
 }
 ```
 
-## Observabilidade 
+## Segurança e resiliência (Fase 4)
+
+### Autenticação
+
+- Header obrigatório para endpoints de atendimento:
+  - `X-API-Key`
+- Configuração:
+  - `Security:ApiKey`
+
+### Rate limiting
+
+Limite global por IP com janela fixa:
+- `RateLimiting:PermitLimit` (default 30)
+- `RateLimiting:WindowSeconds` (default 60)
+- `RateLimiting:QueueLimit` (default 0)
+
+Quando excede o limite, retorna `429 Too Many Requests`.
+
+### Resiliência para chamadas OpenAI
+
+`OpenAIService` usa retry com backoff exponencial para falhas transitórias em chamadas de chat e embedding:
+- tentativas: 3
+- falhas tratadas: `HttpRequestException`, `TaskCanceledException`, `TimeoutException`
+
+Métrica de retry:
+- `atendimento_ai_retries_total`
+
+## Observabilidade (Fase 3)
 
 ### Instrumentação OpenTelemetry
 
@@ -81,6 +109,7 @@ Métricas customizadas principais:
 - `atendimento_usecase_duration_ms`
 - `atendimento_ai_requests_total` (tags `provider` e `model`)
 - `atendimento_ai_errors_total` (tags `provider` e `model`)
+- `atendimento_ai_retries_total` (tags `provider` e `model`)
 - `atendimento_ai_duration_ms` (tags `provider` e `model`)
 - `atendimento_rag_indexed_chunks_total`
 
@@ -130,3 +159,4 @@ Projeto `Atendimento.api.Tests` com cobertura inicial para:
 - carregamento/chunking da base de conhecimento
 - validação do contrato de entrada do endpoint
 - caso de uso de atendimento (orquestração e persistência)
+- validação de API key

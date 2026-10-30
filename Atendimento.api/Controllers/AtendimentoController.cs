@@ -2,12 +2,14 @@ using System.ComponentModel.DataAnnotations;
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using Atendimento.Application.UseCases;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Atendimento.API.Controllers;
 
 [Route("api/[controller]")]
 [ApiController]
+[Authorize(AuthenticationSchemes = "ApiKey")]
 public class AtendimentoController(IAtendimentoUseCase useCase) : ControllerBase
 {
     private static readonly ActivitySource ActivitySource = new("Atendimento.API");
@@ -18,6 +20,8 @@ public class AtendimentoController(IAtendimentoUseCase useCase) : ControllerBase
     [HttpPost]
     [ProducesResponseType(typeof(string), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> PostAsync([FromBody] AtendimentoRequest request, CancellationToken cancellationToken)
     {

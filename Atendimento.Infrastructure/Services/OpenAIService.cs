@@ -5,6 +5,8 @@ using Microsoft.Extensions.Configuration;
 using OpenAI;
 using OpenAI.Chat;
 using OpenAI.Embeddings;
+using Polly;
+using Polly.Retry;
 
 namespace Atendimento.Infrastructure.Services;
 
@@ -14,6 +16,7 @@ public class OpenAIService : IAtendimentoAiService
     private static readonly Meter Meter = new("Atendimento.Infrastructure");
     private static readonly Counter<long> RequestsCounter = Meter.CreateCounter<long>("atendimento_ai_requests_total");
     private static readonly Counter<long> ErrorsCounter = Meter.CreateCounter<long>("atendimento_ai_errors_total");
+    private static readonly Counter<long> RetryCounter = Meter.CreateCounter<long>("atendimento_ai_retries_total");
     private static readonly Counter<long> IndexedChunksCounter = Meter.CreateCounter<long>("atendimento_rag_indexed_chunks_total");
     private static readonly Histogram<double> DurationMs = Meter.CreateHistogram<double>("atendimento_ai_duration_ms");
 
@@ -22,6 +25,7 @@ public class OpenAIService : IAtendimentoAiService
     private readonly EmbeddingClient _embeddingClient;
     private readonly IConfiguration _configuration;
     private readonly string _model;
+    private readonly AsyncRetryPolicy _retryPolicy;
     private readonly SemaphoreSlim _indexingLock = new(1, 1);
     private bool _knowledgeLoaded;
 
@@ -41,6 +45,22 @@ public class OpenAIService : IAtendimentoAiService
         var openAIClient = new OpenAIClient(key);
         _chatClient = openAIClient.GetChatClient(_model);
         _embeddingClient = openAIClient.GetEmbeddingClient("text-embedding-3-small");
+
+        _retryPolicy = Policy
+            .Handle<HttpRequestException>()
+            .Or<TaskCanceledException>()
+            .Or<TimeoutException>()
+            .WaitAndRetryAsync(
+                retryCount: 3,
+                sleepDurationProvider: attempt => TimeSpan.FromMilliseconds(200 * Math.Pow(2, attempt)),
+                onRetry: (_, _, _, _) =>
+                {
+                    RetryCounter.Add(
+                        1,
+                        new KeyValuePair<string, object?>("provider", "openai"),
+                        new KeyValuePair<string, object?>("model", _model)
+                    );
+                });
     }
 
     public async Task<string> GerarRespostaAsync(string nomeUsuario, string mensagem, CancellationToken cancellationToken = default)
@@ -68,7 +88,7 @@ public class OpenAIService : IAtendimentoAiService
             await EnsureKnowledgeLoadedAsync(cancellationToken);
 
             var perguntaCompleta = $"Meu nome é {nomeUsuario.Trim()}, tenho a seguinte pergunta: {mensagem.Trim()}";
-            var contexto = await BuscarContextoAsync(perguntaCompleta);
+            var contexto = await BuscarContextoAsync(perguntaCompleta, cancellationToken);
 
             var prompt = MontarPrompt(perguntaCompleta, contexto);
 
@@ -78,7 +98,10 @@ public class OpenAIService : IAtendimentoAiService
                 new UserChatMessage(prompt.User)
             };
 
-            var response = await _chatClient.CompleteChatAsync(messages, cancellationToken: cancellationToken);
+            var response = await _retryPolicy.ExecuteAsync(async _ =>
+                await _chatClient.CompleteChatAsync(messages, cancellationToken: cancellationToken),
+                cancellationToken);
+
             return response.Value.Content.FirstOrDefault()?.Text ?? "Não consegui gerar uma resposta neste momento.";
         }
         catch
@@ -111,7 +134,7 @@ public class OpenAIService : IAtendimentoAiService
             if (_knowledgeLoaded)
                 return;
 
-            await IndexarBaseDeConhecimentoAsync();
+            await IndexarBaseDeConhecimentoAsync(cancellationToken);
             _knowledgeLoaded = true;
         }
         finally
@@ -120,7 +143,7 @@ public class OpenAIService : IAtendimentoAiService
         }
     }
 
-    private async Task IndexarBaseDeConhecimentoAsync()
+    private async Task IndexarBaseDeConhecimentoAsync(CancellationToken cancellationToken)
     {
         var docs = _knowledgeBaseService.LoadDocuments();
 
@@ -128,19 +151,25 @@ public class OpenAIService : IAtendimentoAiService
         {
             foreach (var chunk in doc.Chunks)
             {
-                var emb = await _embeddingClient.GenerateEmbeddingAsync(chunk);
+                var emb = await _retryPolicy.ExecuteAsync(async _ =>
+                    await _embeddingClient.GenerateEmbeddingAsync(chunk, cancellationToken: cancellationToken),
+                    cancellationToken);
+
                 _vectorDb.Add((chunk, emb.Value.ToFloats().ToArray()));
                 IndexedChunksCounter.Add(1);
             }
         }
     }
 
-    private async Task<string> BuscarContextoAsync(string pergunta)
+    private async Task<string> BuscarContextoAsync(string pergunta, CancellationToken cancellationToken)
     {
         if (_vectorDb.Count == 0)
             return string.Empty;
 
-        var emb = await _embeddingClient.GenerateEmbeddingAsync(pergunta);
+        var emb = await _retryPolicy.ExecuteAsync(async _ =>
+            await _embeddingClient.GenerateEmbeddingAsync(pergunta, cancellationToken: cancellationToken),
+            cancellationToken);
+
         var queryVector = emb.Value.ToFloats().ToArray();
 
         var top = _vectorDb

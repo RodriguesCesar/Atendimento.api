@@ -1,7 +1,9 @@
 @Atendimento.api_HostAddress = http://localhost:5095
+@ApiKey = change-this-api-key
 
 POST {{Atendimento.api_HostAddress}}/api/Atendimento
 Content-Type: application/json
+X-API-Key: {{ApiKey}}
 
 {
   "nome": "César",
