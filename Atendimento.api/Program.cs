@@ -4,6 +4,10 @@ using Atendimento.Infrastructure.Repositories;
 using Atendimento.Infrastructure.Services;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
+using OpenTelemetry.Exporter;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -19,6 +23,53 @@ builder.Services.AddProblemDetails(options =>
     };
 });
 builder.Services.AddHealthChecks();
+
+var otelServiceName = builder.Configuration["OpenTelemetry:ServiceName"] ?? "Atendimento.API";
+var otelEndpoint = builder.Configuration["OpenTelemetry:Otlp:Endpoint"]
+                   ?? Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_ENDPOINT");
+var otelProtocolRaw = builder.Configuration["OpenTelemetry:Otlp:Protocol"]
+                      ?? Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_PROTOCOL")
+                      ?? "grpc";
+var otelProtocol = string.Equals(otelProtocolRaw, "http/protobuf", StringComparison.OrdinalIgnoreCase)
+    ? OtlpExportProtocol.HttpProtobuf
+    : OtlpExportProtocol.Grpc;
+
+builder.Services
+    .AddOpenTelemetry()
+    .ConfigureResource(resource => resource.AddService(otelServiceName))
+    .WithTracing(tracing =>
+    {
+        tracing
+            .AddAspNetCoreInstrumentation()
+            .AddHttpClientInstrumentation()
+            .AddSource("Atendimento.API")
+            .AddSource("Atendimento.Application")
+            .AddSource("Atendimento.Infrastructure")
+            .AddOtlpExporter(options =>
+            {
+                if (!string.IsNullOrWhiteSpace(otelEndpoint))
+                    options.Endpoint = new Uri(otelEndpoint);
+
+                options.Protocol = otelProtocol;
+            });
+    })
+    .WithMetrics(metrics =>
+    {
+        metrics
+            .AddAspNetCoreInstrumentation()
+            .AddHttpClientInstrumentation()
+            .AddRuntimeInstrumentation()
+            .AddMeter("Atendimento.API")
+            .AddMeter("Atendimento.Application")
+            .AddMeter("Atendimento.Infrastructure")
+            .AddOtlpExporter(options =>
+            {
+                if (!string.IsNullOrWhiteSpace(otelEndpoint))
+                    options.Endpoint = new Uri(otelEndpoint);
+
+                options.Protocol = otelProtocol;
+            });
+    });
 
 builder.Services.AddSingleton<IKnowledgeBaseService>(sp =>
 {

@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using System.Diagnostics.Metrics;
 using Atendimento.Domain.Contracts;
 using Microsoft.Extensions.Configuration;
 using OpenAI;
@@ -8,10 +10,18 @@ namespace Atendimento.Infrastructure.Services;
 
 public class OpenAIService : IAtendimentoAiService
 {
+    private static readonly ActivitySource ActivitySource = new("Atendimento.Infrastructure");
+    private static readonly Meter Meter = new("Atendimento.Infrastructure");
+    private static readonly Counter<long> RequestsCounter = Meter.CreateCounter<long>("atendimento_ai_requests_total");
+    private static readonly Counter<long> ErrorsCounter = Meter.CreateCounter<long>("atendimento_ai_errors_total");
+    private static readonly Counter<long> IndexedChunksCounter = Meter.CreateCounter<long>("atendimento_rag_indexed_chunks_total");
+    private static readonly Histogram<double> DurationMs = Meter.CreateHistogram<double>("atendimento_ai_duration_ms");
+
     private readonly IKnowledgeBaseService _knowledgeBaseService;
     private readonly ChatClient _chatClient;
     private readonly EmbeddingClient _embeddingClient;
     private readonly IConfiguration _configuration;
+    private readonly string _model;
     private readonly SemaphoreSlim _indexingLock = new(1, 1);
     private bool _knowledgeLoaded;
 
@@ -22,43 +32,72 @@ public class OpenAIService : IAtendimentoAiService
         _knowledgeBaseService = knowledgeBaseService;
         _configuration = configuration;
 
-        var model = configuration["OpenAI:Model"];
+        _model = configuration["OpenAI:Model"] ?? throw new InvalidOperationException("Configuração OpenAI:Model não encontrada.");
         var key = configuration["OpenAI:Key"];
-
-        if (string.IsNullOrWhiteSpace(model))
-            throw new InvalidOperationException("Configuração OpenAI:Model não encontrada.");
 
         if (string.IsNullOrWhiteSpace(key))
             throw new InvalidOperationException("OpenAI:Key não configurada. Configure via variável de ambiente ou appsettings.Local.json.");
 
         var openAIClient = new OpenAIClient(key);
-        _chatClient = openAIClient.GetChatClient(model);
+        _chatClient = openAIClient.GetChatClient(_model);
         _embeddingClient = openAIClient.GetEmbeddingClient("text-embedding-3-small");
     }
 
     public async Task<string> GerarRespostaAsync(string nomeUsuario, string mensagem, CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(nomeUsuario))
-            throw new ArgumentException("Nome do usuário é obrigatório.", nameof(nomeUsuario));
+        var startedAt = Stopwatch.GetTimestamp();
 
-        if (string.IsNullOrWhiteSpace(mensagem))
-            throw new ArgumentException("Mensagem é obrigatória.", nameof(mensagem));
+        using var activity = ActivitySource.StartActivity("infra.openai.generate_response", ActivityKind.Client);
+        activity?.SetTag("ai.provider", "openai");
+        activity?.SetTag("ai.model", _model);
 
-        await EnsureKnowledgeLoadedAsync(cancellationToken);
+        RequestsCounter.Add(
+            1,
+            new KeyValuePair<string, object?>("provider", "openai"),
+            new KeyValuePair<string, object?>("model", _model)
+        );
 
-        var perguntaCompleta = $"Meu nome é {nomeUsuario.Trim()}, tenho a seguinte pergunta: {mensagem.Trim()}";
-        var contexto = await BuscarContextoAsync(perguntaCompleta);
-
-        var prompt = MontarPrompt(perguntaCompleta, contexto);
-
-        var messages = new List<ChatMessage>
+        try
         {
-            new SystemChatMessage(prompt.System),
-            new UserChatMessage(prompt.User)
-        };
+            if (string.IsNullOrWhiteSpace(nomeUsuario))
+                throw new ArgumentException("Nome do usuário é obrigatório.", nameof(nomeUsuario));
 
-        var response = await _chatClient.CompleteChatAsync(messages, cancellationToken: cancellationToken);
-        return response.Value.Content.FirstOrDefault()?.Text ?? "Não consegui gerar uma resposta neste momento.";
+            if (string.IsNullOrWhiteSpace(mensagem))
+                throw new ArgumentException("Mensagem é obrigatória.", nameof(mensagem));
+
+            await EnsureKnowledgeLoadedAsync(cancellationToken);
+
+            var perguntaCompleta = $"Meu nome é {nomeUsuario.Trim()}, tenho a seguinte pergunta: {mensagem.Trim()}";
+            var contexto = await BuscarContextoAsync(perguntaCompleta);
+
+            var prompt = MontarPrompt(perguntaCompleta, contexto);
+
+            var messages = new List<ChatMessage>
+            {
+                new SystemChatMessage(prompt.System),
+                new UserChatMessage(prompt.User)
+            };
+
+            var response = await _chatClient.CompleteChatAsync(messages, cancellationToken: cancellationToken);
+            return response.Value.Content.FirstOrDefault()?.Text ?? "Não consegui gerar uma resposta neste momento.";
+        }
+        catch
+        {
+            ErrorsCounter.Add(
+                1,
+                new KeyValuePair<string, object?>("provider", "openai"),
+                new KeyValuePair<string, object?>("model", _model)
+            );
+            throw;
+        }
+        finally
+        {
+            DurationMs.Record(
+                Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds,
+                new KeyValuePair<string, object?>("provider", "openai"),
+                new KeyValuePair<string, object?>("model", _model)
+            );
+        }
     }
 
     private async Task EnsureKnowledgeLoadedAsync(CancellationToken cancellationToken)
@@ -91,6 +130,7 @@ public class OpenAIService : IAtendimentoAiService
             {
                 var emb = await _embeddingClient.GenerateEmbeddingAsync(chunk);
                 _vectorDb.Add((chunk, emb.Value.ToFloats().ToArray()));
+                IndexedChunksCounter.Add(1);
             }
         }
     }

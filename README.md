@@ -63,6 +63,58 @@ Exemplo de request:
 }
 ```
 
+## Observabilidade (Fase 3)
+
+### Instrumentação OpenTelemetry
+
+A API exporta traces e métricas via OTLP.
+
+Service name padrão:
+- `Atendimento.API`
+
+Métricas customizadas principais:
+- `atendimento_api_requests_total`
+- `atendimento_api_validation_errors_total`
+- `atendimento_usecase_requests_total`
+- `atendimento_usecase_persisted_total`
+- `atendimento_usecase_errors_total`
+- `atendimento_usecase_duration_ms`
+- `atendimento_ai_requests_total` (tags `provider` e `model`)
+- `atendimento_ai_errors_total` (tags `provider` e `model`)
+- `atendimento_ai_duration_ms` (tags `provider` e `model`)
+- `atendimento_rag_indexed_chunks_total`
+
+Configuração por appsettings/env:
+- `OpenTelemetry__ServiceName`
+- `OpenTelemetry__Otlp__Endpoint`
+- `OpenTelemetry__Otlp__Protocol` (`grpc` ou `http/protobuf`)
+- `OTEL_EXPORTER_OTLP_ENDPOINT`
+- `OTEL_EXPORTER_OTLP_PROTOCOL`
+
+### Stack local de observabilidade
+
+Arquivos:
+- `docker-compose.observability.yml`
+- `observability/otel-collector-config.yaml`
+- `observability/prometheus.yml`
+- `observability/grafana/provisioning/datasources/datasources.yml`
+- `observability/grafana/provisioning/dashboards/dashboards.yml`
+- `observability/grafana/dashboards/atendimento-overview.json`
+
+Suba observabilidade:
+
+```bash
+docker compose -f docker-compose.observability.yml up -d
+```
+
+Acessos locais:
+- Grafana: `http://localhost:3000` (admin/admin)
+- Jaeger: `http://localhost:16686`
+- Prometheus: `http://localhost:9090`
+
+Dashboard provisionado:
+- `Atendimento / Atendimento API - Overview`
+
 ## CI
 
 Workflow em `.github/workflows/ci.yml`:
