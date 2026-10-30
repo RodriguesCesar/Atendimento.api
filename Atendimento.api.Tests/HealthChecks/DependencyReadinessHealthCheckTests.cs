@@ -67,7 +67,7 @@ public class DependencyReadinessHealthCheckTests
         public string ApplicationName { get; set; } = "Atendimento.api.Tests";
         public IFileProvider WebRootFileProvider { get; set; } = null!;
         public string WebRootPath { get; set; } = string.Empty;
-        public string EnvironmentName { get; set; } = Environments.Development;
+        public string EnvironmentName { get; set; } = "Development";
         public string ContentRootPath { get; set; } = string.Empty;
         public IFileProvider ContentRootFileProvider { get; set; } = null!;
     }

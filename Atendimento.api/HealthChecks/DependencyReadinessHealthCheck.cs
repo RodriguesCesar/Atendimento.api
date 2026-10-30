@@ -6,7 +6,7 @@ public class DependencyReadinessHealthCheck(IConfiguration configuration, IWebHo
 {
     public Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
     {
-        var failures = new Dictionary<string, object?>();
+        var failures = new Dictionary<string, object>();
 
         var knowledgeBasePath = configuration["BaseDeConhecimento:Path"];
         if (string.IsNullOrWhiteSpace(knowledgeBasePath))
