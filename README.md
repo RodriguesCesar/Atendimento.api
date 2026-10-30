@@ -195,7 +195,7 @@ Workflow em `.github/workflows/ci.yml`:
 1. `dotnet restore`
 2. `dotnet build --configuration Release --no-restore`
 3. `dotnet test` para todos os projetos de teste encontrados com coleta de cobertura
-4. quality gate de cobertura de linhas (threshold atual: 70%)
+4. quality gate de cobertura de linhas (threshold atual: 40%)
 
 ## Cobertura de testes
 
