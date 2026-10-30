@@ -63,7 +63,7 @@ Exemplo de request:
 }
 ```
 
-## Observabilidade (Fase 3)
+## Observabilidade 
 
 ### Instrumentação OpenTelemetry
 
