@@ -1,4 +1,4 @@
-using Atendimento.API.Services;
+using Atendimento.Infrastructure.Services;
 using Xunit;
 
 namespace Atendimento.API.Tests.Services;

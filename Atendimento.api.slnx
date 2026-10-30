@@ -1,4 +1,7 @@
 <Solution>
+  <Project Path="Atendimento.Domain/Atendimento.Domain.csproj" />
+  <Project Path="Atendimento.Application/Atendimento.Application.csproj" />
+  <Project Path="Atendimento.Infrastructure/Atendimento.Infrastructure.csproj" />
   <Project Path="Atendimento.api/Atendimento.API.csproj" />
   <Project Path="Atendimento.api.Tests/Atendimento.API.Tests.csproj" />
 </Solution>

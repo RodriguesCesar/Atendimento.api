@@ -22,6 +22,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Atendimento.Application\Atendimento.Application.csproj" />
+    <ProjectReference Include="..\Atendimento.Domain\Atendimento.Domain.csproj" />
+    <ProjectReference Include="..\Atendimento.Infrastructure\Atendimento.Infrastructure.csproj" />
     <ProjectReference Include="..\Atendimento.api\Atendimento.API.csproj" />
   </ItemGroup>
 

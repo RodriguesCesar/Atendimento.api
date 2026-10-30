@@ -10,6 +10,22 @@ Este projeto já teve chave sensível versionada no passado. Faça as ações ab
 2. Configurar a chave somente por ambiente local/seguro (`appsettings.Local.json`, User Secrets ou variável de ambiente).
 3. Nunca versionar segredos no repositório.
 
+## Arquitetura
+
+Estrutura em camadas:
+
+- `Atendimento.Domain`: contratos e modelos de domínio.
+- `Atendimento.Application`: caso de uso de atendimento (`IAtendimentoUseCase`).
+- `Atendimento.Infrastructure`: integrações com OpenAI, arquivos markdown e SQL Server (Dapper).
+- `Atendimento.api`: host HTTP, controller, DI, health checks e tratamento global de erros.
+
+Fluxo principal:
+
+1. `POST /api/Atendimento` recebe nome e mensagem.
+2. `AtendimentoUseCase` coordena geração de resposta e persistência.
+3. `OpenAIService` aplica RAG com base em markdown.
+4. `AtendimentoRepository` salva histórico de atendimento.
+
 ## Configuração
 
 1. Copie o arquivo de exemplo:
@@ -61,3 +77,4 @@ Projeto `Atendimento.api.Tests` com cobertura inicial para:
 
 - carregamento/chunking da base de conhecimento
 - validação do contrato de entrada do endpoint
+- caso de uso de atendimento (orquestração e persistência)

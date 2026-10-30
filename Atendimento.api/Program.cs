@@ -1,5 +1,7 @@
-using Atendimento.API.Repositories;
-using Atendimento.API.Services;
+using Atendimento.Application.UseCases;
+using Atendimento.Domain.Contracts;
+using Atendimento.Infrastructure.Repositories;
+using Atendimento.Infrastructure.Services;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 
@@ -18,7 +20,7 @@ builder.Services.AddProblemDetails(options =>
 });
 builder.Services.AddHealthChecks();
 
-builder.Services.AddSingleton<BaseDeConhecimentoService>(sp =>
+builder.Services.AddSingleton<IKnowledgeBaseService>(sp =>
 {
     var config = sp.GetRequiredService<IConfiguration>();
     var env = sp.GetRequiredService<IWebHostEnvironment>();
@@ -28,12 +30,12 @@ builder.Services.AddSingleton<BaseDeConhecimentoService>(sp =>
         throw new InvalidOperationException("Configuração BaseDeConhecimento:Path não encontrada.");
 
     var fullPath = Path.Combine(env.ContentRootPath, relativePath);
-
     return new BaseDeConhecimentoService(fullPath);
 });
 
-builder.Services.AddSingleton<OpenAIService>();
-builder.Services.AddScoped<AtendimentoRepository>();
+builder.Services.AddSingleton<IAtendimentoAiService, OpenAIService>();
+builder.Services.AddScoped<IAtendimentoRepository, AtendimentoRepository>();
+builder.Services.AddScoped<IAtendimentoUseCase, AtendimentoUseCase>();
 
 var app = builder.Build();
 
