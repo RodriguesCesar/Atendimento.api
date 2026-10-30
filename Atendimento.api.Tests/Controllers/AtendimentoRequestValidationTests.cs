@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using Atendimento.API.Controllers;
+using Xunit;
 
 namespace Atendimento.API.Tests.Controllers;
 

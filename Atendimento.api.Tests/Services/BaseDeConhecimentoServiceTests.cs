@@ -1,4 +1,5 @@
 using Atendimento.API.Services;
+using Xunit;
 
 namespace Atendimento.API.Tests.Services;
 
