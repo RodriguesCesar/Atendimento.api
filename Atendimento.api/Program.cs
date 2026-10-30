@@ -1,4 +1,5 @@
 using System.Threading.RateLimiting;
+using Atendimento.API.HealthChecks;
 using Atendimento.API.Security;
 using Atendimento.Application.UseCases;
 using Atendimento.Domain.Contracts;
@@ -6,6 +7,7 @@ using Atendimento.Infrastructure.Repositories;
 using Atendimento.Infrastructure.Services;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Mvc;
 using OpenTelemetry.Exporter;
 using OpenTelemetry.Metrics;
@@ -25,7 +27,10 @@ builder.Services.AddProblemDetails(options =>
         context.ProblemDetails.Extensions["traceId"] = context.HttpContext.TraceIdentifier;
     };
 });
-builder.Services.AddHealthChecks();
+
+builder.Services
+    .AddHealthChecks()
+    .AddCheck<DependencyReadinessHealthCheck>("dependency_readiness", tags: ["ready"]);
 
 builder.Services
     .AddAuthentication("ApiKey")
@@ -170,8 +175,15 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
-app.MapHealthChecks("/health/live");
-app.MapHealthChecks("/health/ready");
+app.MapHealthChecks("/health/live", new HealthCheckOptions
+{
+    Predicate = _ => false
+});
+
+app.MapHealthChecks("/health/ready", new HealthCheckOptions
+{
+    Predicate = registration => registration.Tags.Contains("ready")
+});
 
 app.UseRateLimiter();
 app.UseAuthentication();

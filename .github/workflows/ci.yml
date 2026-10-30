@@ -41,5 +41,41 @@ jobs:
 
           foreach ($project in $testProjects) {
             Write-Host "Running tests for $($project.FullName)"
-            dotnet test $project.FullName --configuration Release --verbosity normal --collect:"XPlat Code Coverage"
+            dotnet test $project.FullName --configuration Release --verbosity normal --results-directory ./TestResults --collect:"XPlat Code Coverage"
+          }
+
+      - name: Coverage quality gate
+        shell: pwsh
+        env:
+          COVERAGE_THRESHOLD: "0.70"
+        run: |
+          $threshold = [double]$env:COVERAGE_THRESHOLD
+          $coverageFiles = Get-ChildItem -Path ./TestResults -Recurse -Filter coverage.cobertura.xml
+
+          if ($coverageFiles.Count -eq 0) {
+            throw "Coverage files were not generated."
+          }
+
+          [double]$covered = 0
+          [double]$valid = 0
+
+          foreach ($file in $coverageFiles) {
+            [xml]$report = Get-Content -Raw -Path $file.FullName
+            $covered += [double]$report.coverage.'lines-covered'
+            $valid += [double]$report.coverage.'lines-valid'
+          }
+
+          if ($valid -le 0) {
+            throw "Invalid coverage report: total valid lines is zero."
+          }
+
+          $coverage = $covered / $valid
+          $coveragePercent = [math]::Round($coverage * 100, 2)
+          $thresholdPercent = [math]::Round($threshold * 100, 2)
+
+          Write-Host "Total line coverage: $coveragePercent% (threshold: $thresholdPercent%)"
+          "## Coverage`n`n- Total line coverage: $coveragePercent%`n- Threshold: $thresholdPercent%" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+
+          if ($coverage -lt $threshold) {
+            throw "Coverage $coveragePercent% is below threshold $thresholdPercent%."
           }

@@ -109,10 +109,12 @@ Requer autenticação por API key e retorna quantidade de chunks indexados.
 Foram adicionados testes cobrindo:
 - integração HTTP de autenticação e endpoint admin (`401` e `200`)
 - comportamento determinístico de rate limiting em nível de componente (janela fixa)
+- health check de prontidão para dependências obrigatórias
 
 Arquivos:
 - `Atendimento.api.Tests/Integration/ApiSecurityAndRateLimitTests.cs`
 - `Atendimento.api.Tests/RateLimiting/FixedWindowRateLimiterTests.cs`
+- `Atendimento.api.Tests/HealthChecks/DependencyReadinessHealthCheckTests.cs`
 
 ## Observabilidade (Fase 3)
 
@@ -137,12 +139,30 @@ Métricas customizadas principais:
 - `atendimento_rag_indexed_chunks_total`
 - `atendimento_admin_reindex_total`
 
+Tracing por operação (novos atributos):
+- `operation.name`
+- `atendimento.request.nome_length`
+- `atendimento.request.mensagem_length`
+- `atendimento.response.length`
+- `atendimento.persistence.saved`
+- `atendimento.reindex.indexed_chunks`
+- `error.type`
+
 Configuração por appsettings/env:
 - `OpenTelemetry__ServiceName`
 - `OpenTelemetry__Otlp__Endpoint`
 - `OpenTelemetry__Otlp__Protocol` (`grpc` ou `http/protobuf`)
 - `OTEL_EXPORTER_OTLP_ENDPOINT`
 - `OTEL_EXPORTER_OTLP_PROTOCOL`
+
+### Health checks de liveness/readiness
+
+- `GET /health/live`: valida somente que o processo está de pé.
+- `GET /health/ready`: valida dependências essenciais de configuração e disponibilidade local:
+  - `BaseDeConhecimento:Path` configurado e diretório existente
+  - `OpenAI:Model` configurado
+  - `OpenAI:Key` configurada
+  - `ConnectionStrings:BDAtendimentos` configurada
 
 ### Stack local de observabilidade
 
@@ -174,7 +194,8 @@ Workflow em `.github/workflows/ci.yml`:
 
 1. `dotnet restore`
 2. `dotnet build --configuration Release --no-restore`
-3. `dotnet test` para todos os projetos de teste encontrados
+3. `dotnet test` para todos os projetos de teste encontrados com coleta de cobertura
+4. quality gate de cobertura de linhas (threshold atual: 70%)
 
 ## Cobertura de testes
 
@@ -186,3 +207,4 @@ Projeto `Atendimento.api.Tests` com cobertura para:
 - validação de API key
 - integração HTTP para auth e reindex
 - comportamento determinístico do limiter de janela fixa
+- readiness health check de dependências obrigatórias

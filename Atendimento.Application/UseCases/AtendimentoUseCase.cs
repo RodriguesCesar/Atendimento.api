@@ -19,6 +19,7 @@ public class AtendimentoUseCase(IAtendimentoAiService aiService, IAtendimentoRep
         var startedAt = Stopwatch.GetTimestamp();
 
         using var activity = ActivitySource.StartActivity("usecase.atendimento.process", ActivityKind.Internal);
+        activity?.SetTag("operation.name", "atendimento.processar");
         RequestsCounter.Add(1);
 
         try
@@ -32,6 +33,9 @@ public class AtendimentoUseCase(IAtendimentoAiService aiService, IAtendimentoRep
             var nomeNormalizado = nome.Trim();
             var mensagemNormalizada = mensagem.Trim();
 
+            activity?.SetTag("atendimento.request.nome_length", nomeNormalizado.Length);
+            activity?.SetTag("atendimento.request.mensagem_length", mensagemNormalizada.Length);
+
             var resposta = await aiService.GerarRespostaAsync(nomeNormalizado, mensagemNormalizada, cancellationToken);
 
             var registro = new AtendimentoRegistro
@@ -44,12 +48,16 @@ public class AtendimentoUseCase(IAtendimentoAiService aiService, IAtendimentoRep
             };
 
             await repository.InserirAsync(registro, cancellationToken);
+            activity?.SetTag("atendimento.persistence.saved", true);
+            activity?.SetStatus(ActivityStatusCode.Ok);
             PersistedCounter.Add(1);
 
             return resposta;
         }
-        catch
+        catch (Exception ex)
         {
+            activity?.SetTag("error.type", ex.GetType().FullName);
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
             ErrorsCounter.Add(1);
             throw;
         }

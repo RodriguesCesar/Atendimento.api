@@ -22,14 +22,26 @@ public class AdminController(IKnowledgeIndexAdminService knowledgeIndexAdminServ
     public async Task<IActionResult> ReindexAsync(CancellationToken cancellationToken)
     {
         using var activity = ActivitySource.StartActivity("api.admin.reindex", ActivityKind.Internal);
+        activity?.SetTag("operation.name", "admin.reindex");
 
-        var indexedChunks = await knowledgeIndexAdminService.RebuildKnowledgeIndexAsync(cancellationToken);
-        ReindexCounter.Add(1);
-
-        return Ok(new
+        try
         {
-            message = "Reindexação concluída com sucesso.",
-            indexedChunks
-        });
+            var indexedChunks = await knowledgeIndexAdminService.RebuildKnowledgeIndexAsync(cancellationToken);
+            activity?.SetTag("atendimento.reindex.indexed_chunks", indexedChunks);
+            activity?.SetStatus(ActivityStatusCode.Ok);
+            ReindexCounter.Add(1);
+
+            return Ok(new
+            {
+                message = "Reindexação concluída com sucesso.",
+                indexedChunks
+            });
+        }
+        catch (Exception ex)
+        {
+            activity?.SetTag("error.type", ex.GetType().FullName);
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+            throw;
+        }
     }
 }

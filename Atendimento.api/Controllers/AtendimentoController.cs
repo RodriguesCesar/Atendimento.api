@@ -26,15 +26,22 @@ public class AtendimentoController(IAtendimentoUseCase useCase) : ControllerBase
     public async Task<IActionResult> PostAsync([FromBody] AtendimentoRequest request, CancellationToken cancellationToken)
     {
         using var activity = ActivitySource.StartActivity("api.atendimento.post", ActivityKind.Server);
+        activity?.SetTag("operation.name", "atendimento.post");
+        activity?.SetTag("atendimento.request.nome_length", request.Nome?.Length ?? 0);
+        activity?.SetTag("atendimento.request.mensagem_length", request.Mensagem?.Length ?? 0);
         RequestsCounter.Add(1);
 
         if (!ModelState.IsValid)
         {
+            activity?.SetStatus(ActivityStatusCode.Error, "validation_failed");
             ValidationErrorsCounter.Add(1);
             return ValidationProblem(ModelState);
         }
 
         var resposta = await useCase.ProcessarAsync(request.Nome, request.Mensagem, cancellationToken);
+        activity?.SetTag("atendimento.response.length", resposta.Length);
+        activity?.SetStatus(ActivityStatusCode.Ok);
+
         return Ok(resposta);
     }
 }
