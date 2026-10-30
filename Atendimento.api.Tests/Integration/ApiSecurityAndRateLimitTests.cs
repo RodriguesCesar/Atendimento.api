@@ -48,6 +48,26 @@ public class ApiSecurityAndRateLimitTests
     }
 
     [Fact]
+    public async Task AtendimentoEndpoint_WithApiKeyAndNoAutoReplenishment_ReturnsTooManyRequestsOnSecondCall()
+    {
+        await using var factory = new TestApiFactory(permitLimit: 1, autoReplenishment: false);
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Add("X-API-Key", "test-api-key");
+
+        var payload = new
+        {
+            nome = "César",
+            mensagem = "Quais cursos de backend vocês têm?"
+        };
+
+        var first = await client.PostAsJsonAsync("/api/atendimento", payload);
+        var second = await client.PostAsJsonAsync("/api/atendimento", payload);
+
+        Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+        Assert.Equal((HttpStatusCode)429, second.StatusCode);
+    }
+
+    [Fact]
     public async Task AdminReindex_WithApiKey_ReturnsOk()
     {
         await using var factory = new TestApiFactory(permitLimit: 1);
@@ -61,7 +81,7 @@ public class ApiSecurityAndRateLimitTests
         Assert.Contains("indexedChunks", json);
     }
 
-    private sealed class TestApiFactory(int permitLimit) : WebApplicationFactory<Program>
+    private sealed class TestApiFactory(int permitLimit, bool autoReplenishment = true) : WebApplicationFactory<Program>
     {
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
@@ -73,6 +93,7 @@ public class ApiSecurityAndRateLimitTests
                     ["RateLimiting:PermitLimit"] = permitLimit.ToString(),
                     ["RateLimiting:WindowSeconds"] = "60",
                     ["RateLimiting:QueueLimit"] = "0",
+                    ["RateLimiting:AutoReplenishment"] = autoReplenishment.ToString(),
                     ["OpenAI:Model"] = "gpt-4o-mini",
                     ["OpenAI:Key"] = "test-openai-key",
                     ["BaseDeConhecimento:Path"] = "Documents"

@@ -41,6 +41,9 @@ var rateLimitWindowSeconds = int.TryParse(builder.Configuration["RateLimiting:Wi
 var rateLimitQueue = int.TryParse(builder.Configuration["RateLimiting:QueueLimit"], out var queueLimit)
     ? queueLimit
     : 0;
+var rateLimitAutoReplenishment = bool.TryParse(builder.Configuration["RateLimiting:AutoReplenishment"], out var autoReplenishment)
+    ? autoReplenishment
+    : true;
 
 builder.Services.AddRateLimiter(options =>
 {
@@ -60,7 +63,7 @@ builder.Services.AddRateLimiter(options =>
                 Window = TimeSpan.FromSeconds(rateLimitWindowSeconds),
                 QueueLimit = rateLimitQueue,
                 QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                AutoReplenishment = true
+                AutoReplenishment = rateLimitAutoReplenishment
             });
     });
 });
