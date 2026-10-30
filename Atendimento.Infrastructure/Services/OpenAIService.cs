@@ -1,4 +1,5 @@
 using Atendimento.Domain.Contracts;
+using Microsoft.Extensions.Configuration;
 using OpenAI;
 using OpenAI.Chat;
 using OpenAI.Embeddings;
