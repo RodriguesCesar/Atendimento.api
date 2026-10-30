@@ -40,16 +40,10 @@ public class AtendimentoController(IAtendimentoUseCase useCase) : ControllerBase
 }
 
 public record AtendimentoRequest(
-    [property: Required(AllowEmptyStrings = false)]
-    [property: MinLength(2)]
-    [property: MaxLength(120)]
     [Required(AllowEmptyStrings = false)]
     [MinLength(2)]
     [MaxLength(120)]
     string Nome,
-    [property: Required(AllowEmptyStrings = false)]
-    [property: MinLength(5)]
-    [property: MaxLength(2000)]
     [Required(AllowEmptyStrings = false)]
     [MinLength(5)]
     [MaxLength(2000)]

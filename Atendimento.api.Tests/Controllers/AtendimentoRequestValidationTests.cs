@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Reflection;
 using Atendimento.API.Controllers;
 using Xunit;
 
@@ -7,30 +8,30 @@ namespace Atendimento.API.Tests.Controllers;
 public class AtendimentoRequestValidationTests
 {
     [Fact]
-    public void AtendimentoRequest_WhenFieldsAreValid_IsValid()
+    public void AtendimentoRequest_ConstructorParameters_HaveValidationAttributes()
     {
-        var request = new AtendimentoRequest("César", "Gostaria de saber as próximas turmas de .NET");
+        var constructor = typeof(AtendimentoRequest).GetConstructors(BindingFlags.Public | BindingFlags.Instance).Single();
 
-        var validationResults = new List<ValidationResult>();
-        var context = new ValidationContext(request);
+        var nome = constructor.GetParameters().Single(x => x.Name == "Nome");
+        var mensagem = constructor.GetParameters().Single(x => x.Name == "Mensagem");
 
-        var valid = Validator.TryValidateObject(request, context, validationResults, true);
+        Assert.Contains(nome.GetCustomAttributes<RequiredAttribute>(), _ => true);
+        Assert.Contains(nome.GetCustomAttributes<MinLengthAttribute>(), x => x.Length == 2);
+        Assert.Contains(nome.GetCustomAttributes<MaxLengthAttribute>(), x => x.Length == 120);
 
-        Assert.True(valid);
-        Assert.Empty(validationResults);
+        Assert.Contains(mensagem.GetCustomAttributes<RequiredAttribute>(), _ => true);
+        Assert.Contains(mensagem.GetCustomAttributes<MinLengthAttribute>(), x => x.Length == 5);
+        Assert.Contains(mensagem.GetCustomAttributes<MaxLengthAttribute>(), x => x.Length == 2000);
     }
 
     [Fact]
-    public void AtendimentoRequest_WhenFieldsAreInvalid_IsInvalid()
+    public void AtendimentoRequest_Properties_DoNotHaveValidationAttributes()
     {
-        var request = new AtendimentoRequest("", "oi");
+        var propertyAttributes = typeof(AtendimentoRequest)
+            .GetProperties(BindingFlags.Public | BindingFlags.Instance)
+            .SelectMany(x => x.GetCustomAttributes<ValidationAttribute>(inherit: true))
+            .ToList();
 
-        var validationResults = new List<ValidationResult>();
-        var context = new ValidationContext(request);
-
-        var valid = Validator.TryValidateObject(request, context, validationResults, true);
-
-        Assert.False(valid);
-        Assert.NotEmpty(validationResults);
+        Assert.Empty(propertyAttributes);
     }
 }
