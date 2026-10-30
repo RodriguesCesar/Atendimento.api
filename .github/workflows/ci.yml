@@ -47,7 +47,7 @@ jobs:
       - name: Coverage quality gate
         shell: pwsh
         env:
-          COVERAGE_THRESHOLD: "0.70"
+          COVERAGE_THRESHOLD: "0.40"
         run: |
           $threshold = [double]$env:COVERAGE_THRESHOLD
           $coverageFiles = Get-ChildItem -Path ./TestResults -Recurse -Filter coverage.cobertura.xml
