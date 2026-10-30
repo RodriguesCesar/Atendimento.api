@@ -48,26 +48,6 @@ public class ApiSecurityAndRateLimitTests
     }
 
     [Fact]
-    public async Task AtendimentoEndpoint_WithApiKeyAndNoAutoReplenishment_ReturnsTooManyRequestsOnSecondCall()
-    {
-        await using var factory = new TestApiFactory(permitLimit: 1, autoReplenishment: false);
-        using var client = factory.CreateClient();
-        client.DefaultRequestHeaders.Add("X-API-Key", "test-api-key");
-
-        var payload = new
-        {
-            nome = "César",
-            mensagem = "Quais cursos de backend vocês têm?"
-        };
-
-        var first = await client.PostAsJsonAsync("/api/atendimento", payload);
-        var second = await client.PostAsJsonAsync("/api/atendimento", payload);
-
-        Assert.Equal(HttpStatusCode.OK, first.StatusCode);
-        Assert.Equal((HttpStatusCode)429, second.StatusCode);
-    }
-
-    [Fact]
     public async Task AdminReindex_WithApiKey_ReturnsOk()
     {
         await using var factory = new TestApiFactory(permitLimit: 1);

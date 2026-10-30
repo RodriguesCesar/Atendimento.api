@@ -104,16 +104,15 @@ Endpoint para rebuild da base vetorial em runtime:
 
 Requer autenticação por API key e retorna quantidade de chunks indexados.
 
-### Testes de integração HTTP
+### Testes
 
-Foram adicionados testes de integração cobrindo:
-- acesso sem API key (`401`)
-- requisição autenticada com API key (`200`)
-- limite de taxa determinístico (`429`) com `RateLimiting:AutoReplenishment=false` no teste
-- endpoint admin de reindex (`200`)
+Foram adicionados testes cobrindo:
+- integração HTTP de autenticação e endpoint admin (`401` e `200`)
+- comportamento determinístico de rate limiting em nível de componente (janela fixa)
 
-Arquivo:
+Arquivos:
 - `Atendimento.api.Tests/Integration/ApiSecurityAndRateLimitTests.cs`
+- `Atendimento.api.Tests/RateLimiting/FixedWindowRateLimiterTests.cs`
 
 ## Observabilidade (Fase 3)
 
@@ -177,7 +176,7 @@ Workflow em `.github/workflows/ci.yml`:
 2. `dotnet build --configuration Release --no-restore`
 3. `dotnet test` para todos os projetos de teste encontrados
 
-## Testes
+## Cobertura de testes
 
 Projeto `Atendimento.api.Tests` com cobertura para:
 
@@ -185,4 +184,5 @@ Projeto `Atendimento.api.Tests` com cobertura para:
 - validação do contrato de entrada do endpoint
 - caso de uso de atendimento (orquestração e persistência)
 - validação de API key
-- integração HTTP para auth, rate limit e reindex
+- integração HTTP para auth e reindex
+- comportamento determinístico do limiter de janela fixa
