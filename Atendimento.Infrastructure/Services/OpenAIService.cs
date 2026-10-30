@@ -10,7 +10,7 @@ using Polly.Retry;
 
 namespace Atendimento.Infrastructure.Services;
 
-public class OpenAIService : IAtendimentoAiService
+public class OpenAIService : IAtendimentoAiService, IKnowledgeIndexAdminService
 {
     private static readonly ActivitySource ActivitySource = new("Atendimento.Infrastructure");
     private static readonly Meter Meter = new("Atendimento.Infrastructure");
@@ -123,6 +123,21 @@ public class OpenAIService : IAtendimentoAiService
         }
     }
 
+    public async Task<int> RebuildKnowledgeIndexAsync(CancellationToken cancellationToken = default)
+    {
+        await _indexingLock.WaitAsync(cancellationToken);
+        try
+        {
+            var indexed = await IndexarBaseDeConhecimentoAsync(cancellationToken, clearBeforeIndex: true);
+            _knowledgeLoaded = true;
+            return indexed;
+        }
+        finally
+        {
+            _indexingLock.Release();
+        }
+    }
+
     private async Task EnsureKnowledgeLoadedAsync(CancellationToken cancellationToken)
     {
         if (_knowledgeLoaded)
@@ -134,7 +149,7 @@ public class OpenAIService : IAtendimentoAiService
             if (_knowledgeLoaded)
                 return;
 
-            await IndexarBaseDeConhecimentoAsync(cancellationToken);
+            await IndexarBaseDeConhecimentoAsync(cancellationToken, clearBeforeIndex: false);
             _knowledgeLoaded = true;
         }
         finally
@@ -143,9 +158,13 @@ public class OpenAIService : IAtendimentoAiService
         }
     }
 
-    private async Task IndexarBaseDeConhecimentoAsync(CancellationToken cancellationToken)
+    private async Task<int> IndexarBaseDeConhecimentoAsync(CancellationToken cancellationToken, bool clearBeforeIndex)
     {
+        if (clearBeforeIndex)
+            _vectorDb.Clear();
+
         var docs = _knowledgeBaseService.LoadDocuments();
+        var totalChunks = 0;
 
         foreach (var doc in docs)
         {
@@ -157,14 +176,29 @@ public class OpenAIService : IAtendimentoAiService
 
                 _vectorDb.Add((chunk, emb.Value.ToFloats().ToArray()));
                 IndexedChunksCounter.Add(1);
+                totalChunks++;
             }
         }
+
+        return totalChunks;
     }
 
     private async Task<string> BuscarContextoAsync(string pergunta, CancellationToken cancellationToken)
     {
-        if (_vectorDb.Count == 0)
-            return string.Empty;
+        List<(string Text, float[] Vector)> snapshot;
+
+        await _indexingLock.WaitAsync(cancellationToken);
+        try
+        {
+            if (_vectorDb.Count == 0)
+                return string.Empty;
+
+            snapshot = _vectorDb.ToList();
+        }
+        finally
+        {
+            _indexingLock.Release();
+        }
 
         var emb = await _retryPolicy.ExecuteAsync(async _ =>
             await _embeddingClient.GenerateEmbeddingAsync(pergunta, cancellationToken: cancellationToken),
@@ -172,7 +206,7 @@ public class OpenAIService : IAtendimentoAiService
 
         var queryVector = emb.Value.ToFloats().ToArray();
 
-        var top = _vectorDb
+        var top = snapshot
             .Select(x => new
             {
                 x.Text,

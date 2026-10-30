@@ -1,9 +1,9 @@
 using System.Threading.RateLimiting;
+using Atendimento.API.Security;
 using Atendimento.Application.UseCases;
 using Atendimento.Domain.Contracts;
 using Atendimento.Infrastructure.Repositories;
 using Atendimento.Infrastructure.Services;
-using Atendimento.API.Security;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
@@ -122,6 +122,8 @@ builder.Services.AddSingleton<IKnowledgeBaseService>(sp =>
 });
 
 builder.Services.AddSingleton<IAtendimentoAiService, OpenAIService>();
+builder.Services.AddSingleton<IKnowledgeIndexAdminService>(sp =>
+    (IKnowledgeIndexAdminService)sp.GetRequiredService<IAtendimentoAiService>());
 builder.Services.AddScoped<IAtendimentoRepository, AtendimentoRepository>();
 builder.Services.AddScoped<IAtendimentoUseCase, AtendimentoUseCase>();
 
@@ -169,3 +171,5 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 app.Run();
+
+public partial class Program;

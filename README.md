@@ -52,6 +52,7 @@ dotnet run --project Atendimento.api/Atendimento.API.csproj
 ## Endpoints principais
 
 - `POST /api/Atendimento` (protegido por `X-API-Key`)
+- `POST /api/admin/reindex` (protegido por `X-API-Key`)
 - `GET /health/live`
 - `GET /health/ready`
 
@@ -91,6 +92,25 @@ Quando excede o limite, retorna `429 Too Many Requests`.
 Métrica de retry:
 - `atendimento_ai_retries_total`
 
+## Governança e operação (Fase 5)
+
+### Endpoint administrativo de reindexação
+
+Endpoint para rebuild da base vetorial em runtime:
+- `POST /api/admin/reindex`
+
+Requer autenticação por API key e retorna quantidade de chunks indexados.
+
+### Testes de integração HTTP
+
+Foram adicionados testes de integração cobrindo:
+- acesso sem API key (`401`)
+- limite de taxa (`429`)
+- endpoint admin de reindex (`200`)
+
+Arquivo:
+- `Atendimento.api.Tests/Integration/ApiSecurityAndRateLimitTests.cs`
+
 ## Observabilidade (Fase 3)
 
 ### Instrumentação OpenTelemetry
@@ -112,6 +132,7 @@ Métricas customizadas principais:
 - `atendimento_ai_retries_total` (tags `provider` e `model`)
 - `atendimento_ai_duration_ms` (tags `provider` e `model`)
 - `atendimento_rag_indexed_chunks_total`
+- `atendimento_admin_reindex_total`
 
 Configuração por appsettings/env:
 - `OpenTelemetry__ServiceName`
@@ -154,9 +175,10 @@ Workflow em `.github/workflows/ci.yml`:
 
 ## Testes
 
-Projeto `Atendimento.api.Tests` com cobertura inicial para:
+Projeto `Atendimento.api.Tests` com cobertura para:
 
 - carregamento/chunking da base de conhecimento
 - validação do contrato de entrada do endpoint
 - caso de uso de atendimento (orquestração e persistência)
 - validação de API key
+- integração HTTP para auth, rate limit e reindex

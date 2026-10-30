@@ -12,6 +12,11 @@ X-API-Key: {{ApiKey}}
 
 ###
 
+POST {{Atendimento.api_HostAddress}}/api/admin/reindex
+X-API-Key: {{ApiKey}}
+
+###
+
 GET {{Atendimento.api_HostAddress}}/health/live
 Accept: application/json
 
