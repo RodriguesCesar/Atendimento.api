@@ -76,7 +76,9 @@ Exemplo de request:
 
 ### Rate limiting
 
-Limite global por IP com janela fixa:
+Limite global com janela fixa:
+- quando há API key: partição por API key
+- sem API key: partição por IP
 - `RateLimiting:PermitLimit` (default 30)
 - `RateLimiting:WindowSeconds` (default 60)
 - `RateLimiting:QueueLimit` (default 0)
@@ -105,7 +107,7 @@ Requer autenticação por API key e retorna quantidade de chunks indexados.
 
 Foram adicionados testes de integração cobrindo:
 - acesso sem API key (`401`)
-- limite de taxa (`429`)
+- requisição autenticada com API key (`200`)
 - endpoint admin de reindex (`200`)
 
 Arquivo:
@@ -181,4 +183,4 @@ Projeto `Atendimento.api.Tests` com cobertura para:
 - validação do contrato de entrada do endpoint
 - caso de uso de atendimento (orquestração e persistência)
 - validação de API key
-- integração HTTP para auth, rate limit e reindex
+- integração HTTP para auth e reindex
