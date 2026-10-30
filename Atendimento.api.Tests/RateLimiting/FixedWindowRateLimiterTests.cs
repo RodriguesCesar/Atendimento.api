@@ -17,8 +17,8 @@ public class FixedWindowRateLimiterTests
             AutoReplenishment = false
         });
 
-        using var first = limiter.Acquire();
-        using var second = limiter.Acquire();
+        using var first = limiter.AttemptAcquire(1);
+        using var second = limiter.AttemptAcquire(1);
 
         Assert.True(first.IsAcquired);
         Assert.False(second.IsAcquired);
