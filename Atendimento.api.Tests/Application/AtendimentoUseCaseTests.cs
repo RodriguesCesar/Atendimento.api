@@ -29,6 +29,26 @@ public class AtendimentoUseCaseTests
         await Assert.ThrowsAsync<ArgumentException>(() => sut.ProcessarAsync("", "mensagem válida"));
     }
 
+    [Fact]
+    public async Task ProcessarAsync_WhenMessageIsInvalid_ThrowsArgumentException()
+    {
+        var sut = new AtendimentoUseCase(new FakeAiService("ok"), new FakeRepository());
+
+        await Assert.ThrowsAsync<ArgumentException>(() => sut.ProcessarAsync("César", ""));
+    }
+
+    [Fact]
+    public async Task ProcessarAsync_WhenAiServiceThrows_DoesNotPersistAndPropagates()
+    {
+        var repo = new FakeRepository();
+        var sut = new AtendimentoUseCase(new ThrowingAiService(), repo);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            sut.ProcessarAsync("César", "mensagem válida"));
+
+        Assert.Empty(repo.Registros);
+    }
+
     private sealed class FakeAiService(string response) : IAtendimentoAiService
     {
         public Task<string> GerarRespostaAsync(string nomeUsuario, string mensagem, CancellationToken cancellationToken = default)
@@ -55,6 +75,14 @@ public class AtendimentoUseCaseTests
                 .ToList();
 
             return Task.FromResult(result);
+        }
+    }
+
+    private sealed class ThrowingAiService : IAtendimentoAiService
+    {
+        public Task<string> GerarRespostaAsync(string nomeUsuario, string mensagem, CancellationToken cancellationToken = default)
+        {
+            throw new InvalidOperationException("Erro de teste");
         }
     }
 }

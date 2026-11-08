@@ -62,6 +62,38 @@ public class DependencyReadinessHealthCheckTests
         Assert.Contains("ConnectionStrings:BDAtendimentos", result.Data.Keys);
     }
 
+    [Fact]
+    public async Task CheckHealthAsync_ShouldReturnUnhealthy_WhenKnowledgeBaseDirectoryDoesNotExist()
+    {
+        var tempRoot = Path.Combine(Path.GetTempPath(), $"atendimento-healthcheck-missing-dir-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempRoot);
+
+        try
+        {
+            var config = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["BaseDeConhecimento:Path"] = "Documents",
+                    ["OpenAI:Model"] = "gpt-4o-mini",
+                    ["OpenAI:Key"] = "test-key",
+                    ["ConnectionStrings:BDAtendimentos"] = "Server=localhost;Database=Atendimento;User Id=test;******;"
+                })
+                .Build();
+
+            var environment = new FakeEnvironment { ContentRootPath = tempRoot };
+            var healthCheck = new DependencyReadinessHealthCheck(config, environment);
+
+            var result = await healthCheck.CheckHealthAsync(new HealthCheckContext());
+
+            Assert.Equal(HealthStatus.Unhealthy, result.Status);
+            Assert.Contains("BaseDeConhecimento:Path", result.Data.Keys);
+        }
+        finally
+        {
+            Directory.Delete(tempRoot, recursive: true);
+        }
+    }
+
     private sealed class FakeEnvironment : IWebHostEnvironment
     {
         public string ApplicationName { get; set; } = "Atendimento.api.Tests";

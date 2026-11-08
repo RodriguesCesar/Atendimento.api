@@ -195,7 +195,7 @@ Workflow em `.github/workflows/ci.yml`:
 1. `dotnet restore`
 2. `dotnet build --configuration Release --no-restore`
 3. `dotnet test` para todos os projetos de teste encontrados com coleta de cobertura
-4. quality gate de cobertura de linhas (threshold atual: 40%)
+4. quality gate de cobertura de linhas (threshold atual: 42%)
 
 ## Cobertura de testes
 
@@ -206,5 +206,7 @@ Projeto `Atendimento.api.Tests` com cobertura para:
 - caso de uso de atendimento (orquestração e persistência)
 - validação de API key
 - integração HTTP para auth e reindex
+- integração HTTP para auth, validação de payload e health endpoints
 - comportamento determinístico do limiter de janela fixa
 - readiness health check de dependências obrigatórias
+- validações de configuração para OpenAIService e AtendimentoRepository
