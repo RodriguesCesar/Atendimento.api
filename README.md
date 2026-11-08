@@ -65,7 +65,7 @@ Exemplo de request:
 }
 ```
 
-## Segurança e resiliência (Fase 4)
+## Segurança e resiliência 
 
 ### Autenticação
 
@@ -95,7 +95,7 @@ Quando excede o limite, retorna `429 Too Many Requests`.
 Métrica de retry:
 - `atendimento_ai_retries_total`
 
-## Governança e operação (Fase 5)
+## Governança e operação 
 
 ### Endpoint administrativo de reindexação
 
@@ -116,7 +116,7 @@ Arquivos:
 - `Atendimento.api.Tests/RateLimiting/FixedWindowRateLimiterTests.cs`
 - `Atendimento.api.Tests/HealthChecks/DependencyReadinessHealthCheckTests.cs`
 
-## Observabilidade (Fase 3)
+## Observabilidade 
 
 ### Instrumentação OpenTelemetry
 
